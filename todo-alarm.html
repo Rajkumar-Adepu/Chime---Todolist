@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chime — TODO with Alarms</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F4F6FB; --surface:#FFFFFF; --ink:#141B33; --muted:#6B7590;
+    --line:#E1E6F0; --cobalt:#2743E0; --cobalt-soft:#EDF0FF;
+    --signal:#FF6A2B; --signal-soft:#FFF0E8; --green:#0E9F6E;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    min-height:100vh; padding:24px 16px 80px;
+  }
+  .wrap{max-width:680px;margin:0 auto}
+
+  /* Header with live clock */
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:22px;flex-wrap:wrap}
+  h1{font-family:'Sora',sans-serif;font-size:26px;font-weight:700;letter-spacing:-0.02em}
+  h1 .dot{color:var(--signal)}
+  #clock{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:var(--cobalt);
+    background:var(--cobalt-soft);padding:6px 12px;border-radius:999px}
+
+  /* Form card */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px;box-shadow:0 1px 3px rgba(20,27,51,.05)}
+  .form-grid{display:grid;gap:12px}
+  label{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px}
+  input[type=text],textarea,input[type=date],input[type=time],select{
+    width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;
+    font-family:'Inter',sans-serif;font-size:15px;color:var(--ink);background:#FBFCFE;
+  }
+  input:focus,textarea:focus,select:focus{outline:2px solid var(--cobalt);outline-offset:1px;border-color:transparent}
+  select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7590' stroke-width='2' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;cursor:pointer}
+  textarea{resize:vertical;min-height:64px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+  /* Alarm toggle */
+  .alarm-row{display:flex;align-items:center;justify-content:space-between;
+    background:var(--signal-soft);border:1px solid #FFD9C4;border-radius:10px;padding:12px 14px}
+  .alarm-row .txt{font-size:14px;font-weight:600}
+  .alarm-row .sub{font-size:12px;color:var(--muted);font-weight:400;margin-top:2px}
+  .switch{position:relative;width:52px;height:30px;flex-shrink:0}
+  .switch input{opacity:0;width:0;height:0}
+  .slider{position:absolute;inset:0;background:#D8DDE8;border-radius:999px;cursor:pointer;transition:.2s}
+  .slider:before{content:"";position:absolute;height:24px;width:24px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+  .switch input:checked + .slider{background:var(--signal)}
+  .switch input:checked + .slider:before{transform:translateX(22px)}
+  .switch input:focus-visible + .slider{outline:2px solid var(--cobalt);outline-offset:2px}
+
+  button.primary{
+    width:100%;background:var(--cobalt);color:#fff;border:none;border-radius:10px;
+    padding:13px;font-family:'Sora',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background .15s
+  }
+  button.primary:hover{background:#1E36BE}
+
+  /* Task list */
+  .section-label{font-family:'Sora',sans-serif;font-size:14px;font-weight:600;margin:26px 0 10px;color:var(--muted)}
+  .task{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px 16px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;transition:opacity .2s}
+  .task.done{opacity:.5}
+  .task.done .t-title{text-decoration:line-through}
+  .task.overdue{border-color:var(--signal)}
+  .t-check{margin-top:3px;width:20px;height:20px;accent-color:var(--green);cursor:pointer;flex-shrink:0}
+  .t-body{flex:1;min-width:0}
+  .t-title{font-weight:600;font-size:15px;word-wrap:break-word}
+  .t-desc{font-size:13px;color:var(--muted);margin-top:3px;word-wrap:break-word;white-space:pre-wrap}
+  .t-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
+  .chip{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;
+    padding:3px 9px;border-radius:999px;background:var(--cobalt-soft);color:var(--cobalt)}
+  .chip.alarm{background:var(--signal-soft);color:var(--signal)}
+  .chip.alarm::before{content:"⏰ "}
+  .chip.count{background:#EEF1F6;color:var(--muted)}
+  .chip.repeat{background:#E6F7F0;color:var(--green)}
+  .chip.repeat::before{content:"↻ "}
+  .day-pills{display:flex;gap:6px;flex-wrap:wrap}
+  .pill{border:1px solid var(--line);background:#FBFCFE;color:var(--muted);
+    border-radius:999px;padding:7px 0;width:calc((100% - 36px)/7);min-width:42px;
+    font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;cursor:pointer;transition:.15s}
+  .pill.on{background:var(--cobalt);border-color:var(--cobalt);color:#fff}
+  .pill:focus-visible{outline:2px solid var(--cobalt);outline-offset:2px}
+  .chip.late{background:var(--signal);color:#fff;animation:pulse 1.2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+  .t-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:2px 6px;border-radius:6px;flex-shrink:0}
+  .t-del:hover{color:var(--signal);background:var(--signal-soft)}
+  .empty{text-align:center;color:var(--muted);font-size:14px;padding:36px 12px}
+  .note{font-size:12px;color:var(--muted);text-align:center;margin-top:18px;line-height:1.5}
+
+  /* Ringing overlay */
+  #ring-overlay{position:fixed;inset:0;background:rgba(20,27,51,.72);display:none;
+    align-items:center;justify-content:center;padding:20px;z-index:50}
+  #ring-overlay.show{display:flex}
+  .ring-card{background:#fff;border-radius:20px;padding:30px 26px;max-width:380px;width:100%;text-align:center}
+  .bell{font-size:52px;display:inline-block;animation:shake .5s infinite}
+  @keyframes shake{0%,100%{transform:rotate(-14deg)}50%{transform:rotate(14deg)}}
+  .ring-card h2{font-family:'Sora',sans-serif;font-size:20px;margin:12px 0 4px}
+  .ring-card p{font-size:14px;color:var(--muted);margin-bottom:22px}
+  .ring-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .ring-btns button{padding:13px;border-radius:10px;border:none;font-family:'Sora',sans-serif;font-weight:600;font-size:14px;cursor:pointer}
+  .btn-stop{background:var(--signal);color:#fff}
+  .btn-snooze{background:#EEF1F6;color:var(--ink)}
+
+  @media (prefers-reduced-motion:reduce){.bell,.chip.late{animation:none}}
+  @media (max-width:480px){.row2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Chime<span class="dot">.</span></h1>
+    <div id="clock">--:--:--</div>
+  </header>
+
+  <div class="card">
+    <div class="form-grid">
+      <div>
+        <label for="f-title">Title</label>
+        <input type="text" id="f-title" placeholder="What needs doing?" maxlength="120">
+      </div>
+      <div>
+        <label for="f-desc">Description</label>
+        <textarea id="f-desc" placeholder="Optional details…" maxlength="1000"></textarea>
+      </div>
+      <div class="row2">
+        <div>
+          <label for="f-date">Date</label>
+          <input type="date" id="f-date">
+        </div>
+        <div>
+          <label for="f-time">Time</label>
+          <input type="time" id="f-time">
+        </div>
+      </div>
+      <div class="row2">
+        <div>
+          <label for="f-repeat">Repeat</label>
+          <select id="f-repeat">
+            <option value="">Never</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </div>
+        <div id="end-repeat-wrap" style="display:none">
+          <label for="f-end">End repeat</label>
+          <input type="date" id="f-end" title="Leave empty to repeat forever">
+        </div>
+      </div>
+      <div id="days-wrap" style="display:none">
+        <label>Repeat on days</label>
+        <div class="day-pills" id="day-pills">
+          <button type="button" class="pill on" data-day="1">Mon</button>
+          <button type="button" class="pill on" data-day="2">Tue</button>
+          <button type="button" class="pill on" data-day="3">Wed</button>
+          <button type="button" class="pill on" data-day="4">Thu</button>
+          <button type="button" class="pill on" data-day="5">Fri</button>
+          <button type="button" class="pill on" data-day="6">Sat</button>
+          <button type="button" class="pill on" data-day="0">Sun</button>
+        </div>
+      </div>
+      <div class="alarm-row">
+        <div>
+          <div class="txt">Urgent — ring alarm</div>
+          <div class="sub">Sound plays at the set date &amp; time</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="f-alarm">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <button class="primary" id="add-btn">Add task</button>
+    </div>
+  </div>
+
+  <div class="section-label" id="list-label">Tasks</div>
+  <div id="task-list"></div>
+  <div class="note">Alarms ring while this page is open in a browser tab.<br>Sound is enabled after your first tap or click on the page.</div>
+</div>
+
+<div id="ring-overlay" role="alertdialog" aria-live="assertive">
+  <div class="ring-card">
+    <span class="bell">⏰</span>
+    <h2 id="ring-title"></h2>
+    <p id="ring-desc"></p>
+    <div class="ring-btns">
+      <button class="btn-snooze" id="btn-snooze">Snooze 5 min</button>
+      <button class="btn-stop" id="btn-stop">Stop</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let todos = [];
+let audioCtx = null, ringInterval = null, ringingId = null;
+const $ = id => document.getElementById(id);
+
+/* ---------- Persistence ---------- */
+async function load(){
+  try{
+    const r = await window.storage.get('todos');
+    if(r && r.value) todos = JSON.parse(r.value);
+  }catch(e){ todos = []; }
+  render();
+}
+async function save(){
+  try{ await window.storage.set('todos', JSON.stringify(todos)); }
+  catch(e){ console.error('save failed', e); }
+}
+
+/* ---------- Clock ---------- */
+function tickClock(){
+  const n = new Date();
+  $('clock').textContent = n.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+setInterval(tickClock, 1000); tickClock();
+
+/* ---------- Recurrence ---------- */
+$('f-repeat').addEventListener('change', ()=>{
+  const v = $('f-repeat').value;
+  $('end-repeat-wrap').style.display = v ? 'block' : 'none';
+  $('days-wrap').style.display = (v === 'daily') ? 'block' : 'none';
+});
+
+document.querySelectorAll('#day-pills .pill').forEach(p=>{
+  p.addEventListener('click', ()=> p.classList.toggle('on'));
+});
+function selectedDays(){
+  return [...document.querySelectorAll('#day-pills .pill.on')].map(p=>Number(p.dataset.day));
+}
+function resetDayPills(){
+  document.querySelectorAll('#day-pills .pill').forEach(p=>p.classList.add('on'));
+}
+
+function nextOccurrence(ms, repeat, days){
+  const d = new Date(ms);
+  if(repeat === 'daily'){
+    const set = (days && days.length) ? days : [0,1,2,3,4,5,6];
+    do { d.setDate(d.getDate()+1); } while(!set.includes(d.getDay()));
+  }
+  else if(repeat === 'weekdays'){ // legacy tasks from earlier version
+    do { d.setDate(d.getDate()+1); } while(d.getDay() === 0 || d.getDay() === 6);
+  }
+  else if(repeat === 'weekly'){ d.setDate(d.getDate()+7); }
+  else if(repeat === 'monthly'){
+    const day = d.getDate();
+    d.setDate(1); d.setMonth(d.getMonth()+1);
+    const max = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
+    d.setDate(Math.min(day, max));
+  }
+  else if(repeat === 'yearly'){
+    const m = d.getMonth(), day = d.getDate();
+    d.setDate(1); d.setFullYear(d.getFullYear()+1); d.setMonth(m);
+    const max = new Date(d.getFullYear(), m+1, 0).getDate();
+    d.setDate(Math.min(day, max)); // Feb 29 → Feb 28 in non-leap years
+  }
+  return d.getTime();
+}
+
+/* Advance a recurring task to its next occurrence in the future.
+   Returns false if the series has ended (past end-repeat date). */
+function advanceRecurring(t){
+  if(!t.repeat || !t.due) return false;
+  let next = t.due;
+  do { next = nextOccurrence(next, t.repeat, t.days); } while(next <= Date.now());
+  if(t.endRepeat && next > t.endRepeat) return false;
+  t.due = next;
+  t.fired = false;
+  t.done = false;
+  return true;
+}
+
+const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function repeatLabel(t){
+  if(t.repeat === 'daily'){
+    const set = (t.days && t.days.length) ? t.days : [0,1,2,3,4,5,6];
+    if(set.length === 7) return 'daily';
+    if(set.length === 5 && [1,2,3,4,5].every(d=>set.includes(d))) return 'weekdays';
+    if(set.length === 2 && set.includes(0) && set.includes(6)) return 'weekends';
+    return [1,2,3,4,5,6,0].filter(d=>set.includes(d)).map(d=>DAY_SHORT[d]).join(', ');
+  }
+  if(t.repeat === 'weekdays') return 'weekdays';
+  return t.repeat; // weekly / monthly / yearly
+}
+
+/* ---------- Audio (unlock on first gesture) ---------- */
+function unlockAudio(){
+  if(!audioCtx){
+    try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){}
+  }
+  if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+document.addEventListener('pointerdown', unlockAudio);
+document.addEventListener('keydown', unlockAudio);
+
+function beep(){
+  if(!audioCtx) return;
+  const t = audioCtx.currentTime;
+  [0, .18].forEach((off,i)=>{
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type='square'; o.frequency.value = i ? 1174 : 880;
+    g.gain.setValueAtTime(0.0001, t+off);
+    g.gain.exponentialRampToValueAtTime(0.25, t+off+.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+off+.15);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t+off); o.stop(t+off+.16);
+  });
+}
+
+function startRinging(task){
+  ringingId = task.id;
+  $('ring-title').textContent = task.title;
+  $('ring-desc').textContent = task.desc || 'Time\u2019s up!';
+  $('ring-overlay').classList.add('show');
+  unlockAudio(); beep();
+  ringInterval = setInterval(beep, 900);
+  if('vibrate' in navigator) navigator.vibrate([300,150,300]);
+}
+function stopRinging(){
+  clearInterval(ringInterval); ringInterval = null;
+  $('ring-overlay').classList.remove('show');
+  ringingId = null;
+}
+
+$('btn-stop').addEventListener('click', ()=>{
+  const t = todos.find(x=>x.id===ringingId);
+  if(t && t.repeat){ advanceRecurring(t); sortTodos(); save(); render(); }
+  stopRinging();
+});
+$('btn-snooze').addEventListener('click', ()=>{
+  const t = todos.find(x=>x.id===ringingId);
+  if(t){ t.due = Date.now() + 5*60*1000; t.fired = false; save(); render(); }
+  stopRinging();
+});
+
+/* ---------- Alarm engine ---------- */
+setInterval(()=>{
+  if(ringingId) return;
+  const now = Date.now();
+  const due = todos.find(t => t.alarm && !t.done && !t.fired && t.due && t.due <= now);
+  if(due){ due.fired = true; save(); startRinging(due); }
+  // refresh countdowns roughly every tick
+  updateCountdowns();
+}, 1000);
+
+/* ---------- Add task ---------- */
+$('add-btn').addEventListener('click', async ()=>{
+  const title = $('f-title').value.trim();
+  const desc  = $('f-desc').value.trim();
+  const date  = $('f-date').value;
+  const time  = $('f-time').value;
+  const alarm = $('f-alarm').checked;
+  const repeat = $('f-repeat').value || null;
+  const endStr = $('f-end').value;
+
+  if(!title){ $('f-title').focus(); $('f-title').placeholder='Title is required'; return; }
+  if(alarm && (!date || !time)){ alert('Pick a date and time for the alarm.'); return; }
+  if(repeat && !date){ alert('Pick a date (and time) for a repeating task.'); return; }
+
+  let days = null;
+  if(repeat === 'daily'){
+    days = selectedDays();
+    if(!days.length){ alert('Pick at least one day for the daily repeat.'); return; }
+  }
+
+  let due = null;
+  if(date){ due = new Date(date + 'T' + (time || '09:00')).getTime(); }
+
+  // If the chosen start date isn't one of the selected days, snap forward to the first one that is
+  if(due && days && !days.includes(new Date(due).getDay())){
+    due = nextOccurrence(due, 'daily', days);
+  }
+
+  let endRepeat = null;
+  if(repeat && endStr){
+    endRepeat = new Date(endStr + 'T23:59:59').getTime();
+    if(due && endRepeat < due){ alert('End repeat must be after the first occurrence.'); return; }
+  }
+
+  todos.push({ id: Date.now() + Math.random().toString(16).slice(2),
+    title, desc, due, alarm, repeat, days, endRepeat, fired:false, done:false, created: Date.now() });
+  sortTodos();
+  await save(); render();
+
+  $('f-title').value=''; $('f-desc').value=''; $('f-date').value=''; $('f-time').value=''; $('f-alarm').checked=false;
+  $('f-repeat').value=''; $('f-end').value=''; $('end-repeat-wrap').style.display='none';
+  $('days-wrap').style.display='none'; resetDayPills();
+  $('f-title').focus();
+});
+
+function sortTodos(){ todos.sort((a,b)=> (a.due||Infinity) - (b.due||Infinity)); }
+
+/* ---------- Render ---------- */
+function fmtDue(ms){
+  const d = new Date(ms);
+  return d.toLocaleDateString([], {month:'short',day:'numeric'}) + ' · ' +
+         d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+}
+function countdownText(ms){
+  const diff = ms - Date.now();
+  if(diff <= 0) return 'overdue';
+  const m = Math.floor(diff/60000);
+  if(m < 60) return 'in ' + (m<1 ? '<1 min' : m + ' min');
+  const h = Math.floor(m/60);
+  if(h < 24) return 'in ' + h + 'h ' + (m%60) + 'm';
+  return 'in ' + Math.floor(h/24) + 'd';
+}
+function updateCountdowns(){
+  document.querySelectorAll('[data-count]').forEach(el=>{
+    const ms = Number(el.dataset.count);
+    const txt = countdownText(ms);
+    el.textContent = txt;
+    el.classList.toggle('late', txt === 'overdue');
+  });
+}
+function render(){
+  const list = $('task-list');
+  list.innerHTML = '';
+  $('list-label').textContent = 'Tasks (' + todos.filter(t=>!t.done).length + ' open)';
+  if(!todos.length){
+    list.innerHTML = '<div class="card empty">No tasks yet — add your first one above.</div>';
+    return;
+  }
+  todos.forEach(t=>{
+    const el = document.createElement('div');
+    const overdue = t.due && !t.done && t.due < Date.now();
+    el.className = 'task' + (t.done?' done':'') + (overdue?' overdue':'');
+    const body = document.createElement('div'); body.className='t-body';
+    const title = document.createElement('div'); title.className='t-title'; title.textContent=t.title;
+    body.appendChild(title);
+    if(t.desc){ const d=document.createElement('div'); d.className='t-desc'; d.textContent=t.desc; body.appendChild(d); }
+    const meta = document.createElement('div'); meta.className='t-meta';
+    if(t.due){
+      const c1=document.createElement('span'); c1.className='chip'; c1.textContent=fmtDue(t.due); meta.appendChild(c1);
+      if(!t.done){ const c2=document.createElement('span'); c2.className='chip count'; c2.dataset.count=t.due; meta.appendChild(c2); }
+    }
+    if(t.repeat){
+      const cr=document.createElement('span'); cr.className='chip repeat';
+      cr.textContent = repeatLabel(t) + (t.endRepeat ? ' until ' + new Date(t.endRepeat).toLocaleDateString([], {month:'short',day:'numeric'}) : '');
+      meta.appendChild(cr);
+    }
+    if(t.alarm){ const c3=document.createElement('span'); c3.className='chip alarm'; c3.textContent='alarm'; meta.appendChild(c3); }
+    if(meta.children.length) body.appendChild(meta);
+
+    const check = document.createElement('input');
+    check.type='checkbox'; check.className='t-check'; check.checked=t.done;
+    check.title='Mark complete';
+    check.addEventListener('change', ()=>{
+      if(check.checked && t.repeat){
+        if(ringingId===t.id) stopRinging();
+        if(advanceRecurring(t)){ sortTodos(); }   // rolls to next occurrence, stays open
+        else { t.done = true; }                   // series ended → actually complete
+      } else {
+        t.done = check.checked;
+        if(t.done && ringingId===t.id) stopRinging();
+      }
+      save(); render();
+    });
+
+    const del = document.createElement('button');
+    del.className='t-del'; del.innerHTML='&times;'; del.title='Delete task';
+    del.addEventListener('click', ()=>{ if(ringingId===t.id) stopRinging(); todos = todos.filter(x=>x.id!==t.id); save(); render(); });
+
+    el.appendChild(check); el.appendChild(body); el.appendChild(del);
+    list.appendChild(el);
+  });
+  updateCountdowns();
+}
+
+load();
+</script>
+</body>
+</html>
